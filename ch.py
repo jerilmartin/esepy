@@ -1,168 +1,196 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import pickle, io
-import matplotlib.pyplot as plt
-import xml.etree.ElementTree as ET
+import nltk
+nltk.download('punkt_tab')
+from nltk.tokenize import word_tokenize, TreebankWordTokenizer,sent_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+from nltk.corpus import stopwords
+from collections import Counter
+from nltk.corpus import wordnet
 
 
-def xml_to_df(xml_bytes):
-    """Convert simple XML into DataFrame"""
-    root = ET.fromstring(xml_bytes)
-    rows = []
-    for item in root:
-        rows.append({child.tag: child.text for child in item})
-    return pd.DataFrame(rows)
-
-def df_to_xml(df):
-    """Convert DataFrame into XML string"""
-    root = ET.Element("data")
-    for _, row in df.iterrows():
-        item = ET.SubElement(root, "row")
-        for col, val in row.items():
-            child = ET.SubElement(item, col)
-            child.text = str(val)
-    return ET.tostring(root, encoding="utf-8")
 
 
-st.set_page_config(page_title="📊 Easy Data Dashboard", layout="wide")
-st.title("📊 Easy Data Dashboard")
+nltk.download('stopwords')
+nltk.download('wordnet')
+
+#installs:  pip install textblob
+#python -m textblob.download_corpora
+
+#pip install spacy
+#python -m spacy download en_core_web_sm
+
+#pip install gensim
+
+text_non_english = "¡Hola! Los gatos corren más rápido que los perros."
+text_non_english = text_non_english.lower()
+tokens_non_english = word_tokenize(text_non_english, language='spanish')
+print(" Tokens (Spanish):", tokens_non_english)
 
 
-st.sidebar.header("Upload Data")
-file = st.sidebar.file_uploader("Upload CSV/TXT/TSV/PKL/XML", 
-                                type=["csv","txt","tsv","pkl","xml"])
 
-df = pd.DataFrame()
-if file:
-    if file.name.endswith(("csv", "txt", "tsv")):
-        sep = "\t" if file.name.endswith(("tsv", "txt")) else ","
-        df = pd.read_csv(file, sep=sep)
-    elif file.name.endswith(".pkl"):
-        df = pickle.load(file)
-    elif file.name.endswith(".xml"):
-        df = xml_to_df(file.read())
+text = "Hello!!! Cats, dogs, and birds are running faster than ever in 2025."
+text = text.lower()
+# 2. Tokenization (method 1): Basic NLTK tokenizer
+tokens_basic = word_tokenize(text)
+treebank_tokenizer = TreebankWordTokenizer()
+tokens_treebank = treebank_tokenizer.tokenize(text)
 
-if st.sidebar.button("🔄 Reset Data"):
-    st.experimental_rerun()
+stop_words = set(stopwords.words('english'))
 
-with st.expander("📌 Dataset Preview", expanded=True):
-    st.dataframe(df)
-    if not df.empty:
-        st.write(f"**Shape:** {df.shape}")
-        st.write("**Summary:**")
-        st.write(df.describe(include="all"))
+filtered_basic = [w for w in tokens_basic if w.isalpha() and w not in stop_words]
+filtered_treebank = [w for w in tokens_treebank if w.isalpha() and w not in stop_words]
+
+print(" word_tokenize:", tokens_basic)
+print("Filtered (word_tokenize):", filtered_basic, "\n")
+
+print(" TreebankWordTokenizer:", tokens_treebank)
+print("Filtered (Treebank):", filtered_treebank, "\n")
+
+filtfreq = Counter(filtered_treebank)
+print(filtfreq)
 
 
-with st.expander("➕ Append New Row"):
-    if not df.empty:
-        with st.form("append_row", clear_on_submit=True):
-            new_row = {col: st.text_input(f"{col}") for col in df.columns}
-            if st.form_submit_button("Add Row"):
-                df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                st.success("Row added successfully!")
-                st.dataframe(df.tail())
+ps = PorterStemmer()
+lemmatizer = WordNetLemmatizer()
+
+stemmed_basic = [ps.stem(w) for w in filtered_basic]
+lemmatized_basic = [lemmatizer.lemmatize(w) for w in filtered_basic]
+print("After Stemming (Porter):", stemmed_basic)
+print("After Lemmatization:", lemmatized_basic)
+
+
+
+# Word to analyze
+word = "happy"
+
+# Get all synsets (word senses)
+synsets = wordnet.synsets(word)
+print(f"Synsets of '{word}':", synsets)
+
+# --- Extract Synonyms ---
+synonyms = set()
+for syn in synsets:
+    for lemma in syn.lemmas():
+        synonyms.add(lemma.name())
+
+# --- Extract Antonyms ---
+antonyms = set()
+for syn in synsets:
+    for lemma in syn.lemmas():
+        if lemma.antonyms():
+            antonyms.add(lemma.antonyms()[0].name())
+
+# --- Extract Hypernyms (General Categories) ---
+hypernyms = set()
+for syn in synsets:
+    for hyper in syn.hypernyms():
+        hypernyms.add(hyper.name().split('.')[0])
+
+print(f"\n Synonyms of '{word}':", synonyms)
+print(f" Antonyms of '{word}':", antonyms)
+print(f" Hypernyms of '{word}':", hypernyms)
+
+
+text = "I want to increase my knowledge and to increase my skills"
+
+tokens = nltk.word_tokenize(text.lower())
+bigram_list = list(nltk.bigrams(tokens))
+
+# --- Count unigrams and bigrams ---
+unigram_counts = Counter(tokens)
+bigram_counts = Counter(bigram_list)
+
+# Vocabulary size
+vocab_size = len(set(tokens))
+
+# Choose bigram to calculate probability
+w1, w2 = "to", "increase"
+
+# --- Without Smoothing ---
+if unigram_counts[w1] > 0:
+    prob_no_smooth = bigram_counts[(w1, w2)] / unigram_counts[w1]
+else:
+    prob_no_smooth = 0
+
+# --- With Laplace Smoothing ---
+prob_laplace = (bigram_counts[(w1, w2)] + 1) / (unigram_counts[w1] + vocab_size)
+
+# --- Print results ---
+print(f"P('{w2}' | '{w1}') without smoothing = {prob_no_smooth:.4f}")
+print(f"P('{w2}' | '{w1}') with Laplace smoothing = {prob_laplace:.4f}")
+
+
+import spacy
+
+# Load English model
+nlp = spacy.load("en_core_web_sm")
+
+# Sample text
+text = "Apple Inc. was founded by Steve Jobs in California on April 1, 1976."
+
+# Process text
+doc = nlp(text)
+
+# Extract named entities
+print("Named Entities:")
+for ent in doc.ents:
+    print(f"{ent.text} ({ent.label_})")
+from textblob import TextBlob
+
+# Sample sentences
+sentences = [
+    "I love studying NLP, it's amazing!",
+    "I hate when my code doesn't run.",
+    "The weather is okay today."
+]
+
+# Analyze sentiment
+for sent in sentences:
+    blob = TextBlob(sent)
+    polarity = blob.sentiment.polarity
+    if polarity > 0:
+        sentiment = "Positive"
+    elif polarity < 0:
+        sentiment = "Negative"
     else:
-        st.info("Upload data first to add rows.")
+        sentiment = "Neutral"
+    print(f"'{sent}' → {sentiment} (Polarity: {polarity})")
 
 
-with st.expander("🩹 Handle Missing Values"):
-    if not df.empty:
-        missing_cols = df.columns[df.isnull().any()].tolist()
-        if missing_cols:
-            col = st.selectbox("Column with NaN", missing_cols)
-            action = st.radio("Action", ["Fill Mean","Fill Median","Fill Mode","Drop Rows","Drop Column"])
-            if st.button("Apply Missing Value Fix"):
-                if action == "Fill Mean": df[col].fillna(df[col].mean(), inplace=True)
-                elif action == "Fill Median": df[col].fillna(df[col].median(), inplace=True)
-                elif action == "Fill Mode": df[col].fillna(df[col].mode()[0], inplace=True)
-                elif action == "Drop Rows": df.dropna(subset=[col], inplace=True)
-                elif action == "Drop Column": df.drop(columns=[col], inplace=True)
-                st.success(f"{action} applied!")
-        else:
-            st.info("No missing values found.")
 
-with st.expander("🔧 Transformations & Filters"):
-    if not df.empty:
-        # Convert type
-        c = st.selectbox("Column to convert", df.columns)
-        t = st.selectbox("Convert to", ["int","float","str","datetime"])
-        if st.button("Convert Column Type"):
-            df[c] = pd.to_datetime(df[c], errors="coerce") if t=="datetime" else df[c].astype(t)
-            st.success(f"Converted {c} to {t}")
-
-        # Sort
-        sort_cols = st.multiselect("Sort by", df.columns)
-        if st.button("Sort Data") and sort_cols:
-            df = df.sort_values(by=sort_cols)
-
-        # Group
-        if st.checkbox("Group By"):
-            g = st.selectbox("Group column", df.columns)
-            num_cols = df.select_dtypes(include=np.number).columns
-            if len(num_cols) > 0:
-                a = st.selectbox("Aggregate column", num_cols)
-                f = st.selectbox("Function", ["mean","sum","count","min","max"])
-                st.write(getattr(df.groupby(g)[a], f)())
-
-        # Slice
-        start, end = st.slider("Row Slice", 0, len(df), (0, min(len(df),10)))
-        st.write(df.iloc[start:end])
-
-        # Filter
-        expr = st.text_input("Filter expression (e.g., age > 22)")
-        if expr:
-            try: st.dataframe(df.query(expr))
-            except: st.error("Invalid expression")
+from gensim.models import Word2Vec
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
 
-with st.expander("📈 Visualization"):
-    if not df.empty:
-        num_cols = df.select_dtypes(include=np.number).columns
-        if len(num_cols) > 0:
-            x = st.selectbox("X-axis", df.columns)
-            y = st.selectbox("Y-axis", [c for c in num_cols if c != x], index=0)
-            chart = st.radio("Chart Type", ["Histogram","Bar","Line","Scatter"])
-            if st.button("Plot Chart"):
-                fig, ax = plt.subplots()
-                if chart == "Histogram": ax.hist(df[x].dropna(), bins=20)
-                elif chart == "Bar": ax.bar(df[x].astype(str), df[y])
-                elif chart == "Line": ax.plot(df[x], df[y])
-                else: ax.scatter(df[x], df[y])
-                st.pyplot(fig)
 
 
-with st.expander("📊 NumPy / Pandas Ops"):
-    if not df.empty:
-        num_cols = df.select_dtypes(include=np.number).columns
-        if len(num_cols) > 0:
-            col = st.selectbox("Numeric column", num_cols)
-            st.write("Mean:", np.mean(df[col]))
-            st.write("Median:", np.median(df[col]))
-            st.write("Std Dev:", np.std(df[col]))
-            st.write("Unique:", df[col].nunique())
-
-        # Search & Delete
-        scol = st.selectbox("Search Column", df.columns)
-        sval = st.text_input("Search Value")
-        if sval:
-            st.dataframe(df[df[scol].astype(str).str.contains(sval, case=False)])
-            if st.button("Delete Matches"):
-                df = df[~df[scol].astype(str).str.contains(sval, case=False)]
-                st.success("Deleted matching rows!")
-
-        # Delete by Index
-        if len(df) > 0:
-            idx = st.number_input("Delete Row by Index", 0, len(df)-1, 0)
-            if st.button("Delete Row"):
-                df = df.drop(index=idx)
-                st.success(f"Row {idx} deleted!")
+text = """
+I love studying NLP. NLP is fun and very useful. 
+I study NLP every day to improve my skills. 
+Deep learning is related to NLP and AI.
+"""
 
 
-with st.expander("⬇️ Export Data"):
-    if not df.empty:
-        b = io.BytesIO(); pickle.dump(df, b); b.seek(0)
-        st.download_button("⬇ Pickle", b, "data.pkl")
-        st.download_button("⬇ CSV", df.to_csv(index=False).encode(), "data.csv")
-        st.download_button("⬇ XML", df_to_xml(df), "data.xml")
-        st.download_button("⬇ TXT", df.to_string(index=False), "data.txt")
+sentences = sent_tokenize(text)
+
+
+tokenized_sentences = [word_tokenize(sent.lower()) for sent in sentences]
+
+
+model = Word2Vec(tokenized_sentences, vector_size=50, window=2, min_count=1, workers=1)
+
+
+words = list(model.wv.index_to_key)
+vectors = model.wv[words]
+
+vectors_2d = PCA(n_components=2).fit_transform(vectors)
+
+plt.figure(figsize=(6,4))
+plt.scatter(vectors_2d[:,0], vectors_2d[:,1])
+for i, word in enumerate(words):
+    plt.text(vectors_2d[i,0]+0.01, vectors_2d[i,1]+0.01, word)
+plt.title("Word2Vec 2D Visualization")
+plt.xlabel("PCA Component 1")
+plt.ylabel("PCA Component 2")
+plt.show()
