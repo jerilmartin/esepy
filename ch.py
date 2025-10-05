@@ -158,39 +158,82 @@ for sent in sentences:
 
 
 
+# Install if not done:
+# pip install gensim matplotlib nltk
+
+import nltk
+from nltk.tokenize import word_tokenize, sent_tokenize
 from gensim.models import Word2Vec
-import matplotlib.pyplot as plt
+from gensim.downloader import load
 from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 
+nltk.download('punkt')
 
-
-
+# --- Text Input ---
 text = """
-I love studying NLP. NLP is fun and very useful. 
-I study NLP every day to improve my skills. 
+I love studying NLP. NLP is fun and very useful.
+I study NLP every day to improve my skills.
 Deep learning is related to NLP and AI.
 """
 
+# --- Tokenize sentences and words ---
+sentences = [word_tokenize(s.lower()) for s in sent_tokenize(text)]
 
-sentences = sent_tokenize(text)
+# --- 1️⃣ Train Word2Vec (on our text) ---
+w2v = Word2Vec(sentences, vector_size=50, window=3, min_count=1)
 
+print("\n🔹 Word2Vec Similar words to 'nlp':")
+print(w2v.wv.most_similar('nlp'))
 
-tokenized_sentences = [word_tokenize(sent.lower()) for sent in sentences]
+# --- 2️⃣ Load Pretrained GloVe ---
+glove = load('glove-wiki-gigaword-50')
 
+print("\n🔹 GloVe Similar words to 'learning':")
+print(glove.most_similar('learning'))
 
-model = Word2Vec(tokenized_sentences, vector_size=50, window=2, min_count=1, workers=1)
-
-
-words = list(model.wv.index_to_key)
-vectors = model.wv[words]
-
-vectors_2d = PCA(n_components=2).fit_transform(vectors)
+# --- 3️⃣ Visualize Word2Vec ---
+pca = PCA(n_components=2)
+X = pca.fit_transform(w2v.wv.vectors)
 
 plt.figure(figsize=(6,4))
-plt.scatter(vectors_2d[:,0], vectors_2d[:,1])
-for i, word in enumerate(words):
-    plt.text(vectors_2d[i,0]+0.01, vectors_2d[i,1]+0.01, word)
-plt.title("Word2Vec 2D Visualization")
-plt.xlabel("PCA Component 1")
-plt.ylabel("PCA Component 2")
+plt.scatter(X[:, 0], X[:, 1])
+for i, word in enumerate(w2v.wv.index_to_key):
+    plt.text(X[i, 0], X[i, 1], word)
+plt.title("Word2Vec (Trained on Our Text)")
 plt.show()
+
+# --- 4️⃣ Visualize few GloVe words ---
+words = ['ai', 'learning', 'data', 'model', 'computer']
+vectors = [glove[w] for w in words]
+X = PCA(n_components=2).fit_transform(vectors)
+
+plt.figure(figsize=(6,4))
+plt.scatter(X[:, 0], X[:, 1])
+for i, word in enumerate(words):
+    plt.text(X[i, 0], X[i, 1], word)
+plt.title("GloVe (Pretrained) Embeddings")
+plt.show()
+
+
+
+
+
+from nltk.wsd import lesk
+sentence = "I went to the bank to deposit some money"
+
+# Tokenize sentence
+tokens = word_tokenize(sentence)
+
+# Apply Lesk algorithm
+ambiguous_word = "bank"
+sense = lesk(tokens, ambiguous_word)
+
+# Display results
+print(f"Sentence: {sentence}")
+print(f"Word: {ambiguous_word}")
+print(f"Predicted Sense: {sense}")
+print(f"Definition: {sense.definition()}")
+
+
+
